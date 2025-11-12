@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Ballz Clone</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game-shell">
+    <header class="hud">
+      <div class="hud__score">
+        Score:
+        <span id="scoreValue">0</span>
+      </div>
+      <div class="hud__balls">
+        Balls:
+        <span id="ballCountValue">1</span>
+      </div>
+      <button id="restartBtn" class="hud__restart" type="button">Restart</button>
+    </header>
+
+    <section class="canvas-wrapper">
+      <canvas id="gameCanvas" width="480" height="720"></canvas>
+      <div id="aimHint" class="aim-hint">Drag and release to shoot</div>
+    </section>
+
+    <footer class="tips">
+      <p>Pull to aim. Release to launch the ball chain. Clear blocks before they reach the bottom.</p>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
