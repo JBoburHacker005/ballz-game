@@ -20,6 +20,9 @@ const scoreValue = document.getElementById("scoreValue");
 const ballCountValue = document.getElementById("ballCountValue");
 const restartBtn = document.getElementById("restartBtn");
 const aimHint = document.getElementById("aimHint");
+const gameOverOverlay = document.getElementById("gameOverOverlay");
+const finalScoreValue = document.getElementById("finalScoreValue");
+const overlayRestartBtn = document.getElementById("overlayRestartBtn");
 
 const GAME_WIDTH = canvas.width;
 const GAME_HEIGHT = canvas.height;
@@ -27,6 +30,7 @@ const GRID_COLUMNS = 7;
 const GRID_SIZE = GAME_WIDTH / GRID_COLUMNS;
 const BALL_RADIUS = 7;
 const BALL_SPEED = 620;
+const MAX_FLOATING_BLOCKS = 24;
 
 const COLORS = {
   background: "#090d15",
@@ -171,6 +175,7 @@ class Particle {
     this.vy = Math.sin(angle) * magnitude;
     this.life = options.life ?? 0.4;
     this.color = color;
+    this.initialLife = Math.max(this.life, 0.001);
   }
 
   update(delta) {
@@ -182,7 +187,7 @@ class Particle {
 
   draw(ctx) {
     if (this.life <= 0) return;
-    ctx.globalAlpha = clamp(this.life / 0.4, 0, 1);
+    ctx.globalAlpha = clamp(this.life / this.initialLife, 0, 1);
     ctx.fillStyle = this.color;
     ctx.fillRect(this.x, this.y, 6, 6);
     ctx.globalAlpha = 1;
@@ -240,6 +245,8 @@ class Game {
     this.balls = [];
     this.particles = [];
     this.barrierBlocks = [];
+    gameOverOverlay.classList.add("hidden");
+    finalScoreValue.textContent = "0";
     this.pendingBalls = 0;
     this.ballChain = 1;
     this.baseBallPosition = GAME_WIDTH / 2;
@@ -252,7 +259,7 @@ class Game {
     this.timeAccumulator = 0;
     this.isGameOver = false;
     this.spawnRow();
-    this.createBarrierRing();
+    this.seedFloatingBlocks();
     this.updateHUD();
     aimHint.classList.remove("hidden");
   }
@@ -301,6 +308,7 @@ class Game {
     canvas.addEventListener("touchend", endAim);
 
     restartBtn.addEventListener("click", () => this.reset());
+    overlayRestartBtn.addEventListener("click", () => this.reset());
   }
 
   launchTurn(angle) {
@@ -353,6 +361,7 @@ class Game {
     this.isAiming = false;
     this.turnAngle = null;
     this.isGameOver = true;
+    this.showGameOverOverlay();
   }
 
   showGameOverBanner() {
@@ -387,6 +396,7 @@ class Game {
         const spawnPointX = this.activeBallChainLanding ?? this.baseBallPosition;
         const ball = new Ball(spawnPointX, this.baseY - BALL_RADIUS, this.turnAngle);
         this.balls.push(ball);
+        this.spawnFloatingBlock();
       }
     }
 
@@ -483,6 +493,7 @@ class Game {
         if (barrier.strength <= 0) {
           barrier.destroyed = true;
           this.spawnExplosion(barrier.x, barrier.y);
+          this.spawnFloatingBlock({ force: true });
         }
 
         if (isHorizontal) {
@@ -593,40 +604,64 @@ class Game {
     if (this.isAiming || (!this.isLaunching && !this.isAiming && this.turnAngle !== null)) {
       this.drawAim();
     }
+  }
 
-    if (this.isGameOver) {
-      this.drawGameOverOverlay();
+  seedFloatingBlocks() {
+    const seedCount = 6;
+    for (let i = 0; i < seedCount; i++) {
+      this.spawnFloatingBlock({ force: true });
     }
   }
 
-  drawGameOverOverlay() {
-    ctx.save();
-    ctx.fillStyle = "rgba(9, 13, 21, 0.82)";
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 36px 'Segoe UI', sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("Game Over", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20);
-    ctx.font = "400 20px 'Segoe UI', sans-serif";
-    ctx.fillText(`Score: ${this.score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 16);
-    ctx.fillText("Press Restart to play again", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 48);
-    ctx.restore();
-  }
+  spawnFloatingBlock({ force = false } = {}) {
+    if (this.isGameOver) return;
 
-  createBarrierRing() {
-    const centerX = GAME_WIDTH / 2;
-    const centerY = GAME_HEIGHT * 0.45;
-    const radius = GRID_SIZE * 2.4;
     const size = GRID_SIZE * 0.9;
-    const blockCount = 10;
+    const padding = size / 2 + 12;
+    const maxY = GAME_HEIGHT * 0.6;
+    const attempts = 18;
+    const strengthBase = this.turn + 2;
 
-    for (let i = 0; i < blockCount; i++) {
-      const angle = (Math.PI * 2 * i) / blockCount;
-      const x = clamp(centerX + Math.cos(angle) * radius, size / 2 + 8, GAME_WIDTH - size / 2 - 8);
-      const y = clamp(centerY + Math.sin(angle) * radius, size / 2 + 8, GAME_HEIGHT * 0.8);
-      const strength = 4 + Math.floor(this.rng.next() * 5);
-      this.barrierBlocks.push(new BarrierBlock(x, y, size, strength));
+    const createCandidate = () => {
+      const x = padding + this.rng.next() * (GAME_WIDTH - padding * 2);
+      const y = padding + this.rng.next() * (maxY - padding) + 32;
+      const strength = Math.max(2, Math.round(strengthBase * (0.6 + this.rng.next())));
+      return new BarrierBlock(x, y, size, strength);
+    };
+
+    let candidate = createCandidate();
+    for (let i = 0; i < attempts; i++) {
+      if (!this.isBarrierOverlapping(candidate)) break;
+      candidate = createCandidate();
     }
+
+    if (!force && this.barrierBlocks.length >= MAX_FLOATING_BLOCKS) {
+      return;
+    }
+
+    if (force && this.barrierBlocks.length >= MAX_FLOATING_BLOCKS) {
+      this.barrierBlocks.shift();
+    }
+
+    this.barrierBlocks.push(candidate);
+  }
+
+  isBarrierOverlapping(candidate) {
+    const minGap = candidate.size + 24;
+    const minGapSq = minGap * minGap;
+    for (const barrier of this.barrierBlocks) {
+      const dx = barrier.x - candidate.x;
+      const dy = barrier.y - candidate.y;
+      if (dx * dx + dy * dy < minGapSq) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  showGameOverOverlay() {
+    finalScoreValue.textContent = this.score;
+    gameOverOverlay.classList.remove("hidden");
   }
 
   loop(timestamp) {

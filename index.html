@@ -23,6 +23,14 @@
     <section class="canvas-wrapper">
       <canvas id="gameCanvas" width="480" height="720"></canvas>
       <div id="aimHint" class="aim-hint">Drag and release to shoot</div>
+      <div id="gameOverOverlay" class="game-over-overlay hidden">
+        <div class="game-over-card">
+          <div class="game-over-emoji">😢</div>
+          <p class="game-over-title">You lose!</p>
+          <p class="game-over-score">Score: <span id="finalScoreValue">0</span></p>
+          <button id="overlayRestartBtn" type="button" class="game-over-restart">Restart</button>
+        </div>
+      </div>
     </section>
 
     <footer class="tips">
