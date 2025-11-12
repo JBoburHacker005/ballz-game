@@ -26,7 +26,7 @@ const GAME_HEIGHT = canvas.height;
 const GRID_COLUMNS = 7;
 const GRID_SIZE = GAME_WIDTH / GRID_COLUMNS;
 const BALL_RADIUS = 7;
-const BALL_SPEED = 6.2;
+const BALL_SPEED = 620;
 
 const COLORS = {
   background: "#090d15",
@@ -161,12 +161,15 @@ class Ball {
 }
 
 class Particle {
-  constructor(x, y, color) {
+  constructor(x, y, color, options = {}) {
     this.x = x;
     this.y = y;
-    this.vx = (Math.random() - 0.5) * 120;
-    this.vy = (Math.random() - 0.5) * 120;
-    this.life = 0.4;
+    const speed = options.speed ?? 120;
+    const angle = Math.random() * Math.PI * 2;
+    const magnitude = Math.random() * speed;
+    this.vx = Math.cos(angle) * magnitude;
+    this.vy = Math.sin(angle) * magnitude;
+    this.life = options.life ?? 0.4;
     this.color = color;
   }
 
@@ -186,6 +189,44 @@ class Particle {
   }
 }
 
+class BarrierBlock {
+  constructor(x, y, size, strength) {
+    this.x = x;
+    this.y = y;
+    this.size = size;
+    this.strength = strength;
+    this.destroyed = false;
+  }
+
+  get rect() {
+    return {
+      x: this.x - this.size / 2,
+      y: this.y - this.size / 2,
+      w: this.size,
+      h: this.size,
+    };
+  }
+
+  draw(ctx) {
+    const { x, y, w, h } = this.rect;
+    const colorIndex = Math.min(BLOCK_COLORS.length - 1, Math.floor((this.strength - 1) / 3));
+    ctx.fillStyle = BLOCK_COLORS[colorIndex];
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 14);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.text;
+    ctx.font = "800 20px 'Segoe UI', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.strength, this.x, this.y);
+  }
+}
+
 class Game {
   constructor() {
     this.rng = new RNG();
@@ -198,6 +239,7 @@ class Game {
     this.blocks = [];
     this.balls = [];
     this.particles = [];
+    this.barrierBlocks = [];
     this.pendingBalls = 0;
     this.ballChain = 1;
     this.baseBallPosition = GAME_WIDTH / 2;
@@ -210,6 +252,7 @@ class Game {
     this.timeAccumulator = 0;
     this.isGameOver = false;
     this.spawnRow();
+    this.createBarrierRing();
     this.updateHUD();
     aimHint.classList.remove("hidden");
   }
@@ -421,6 +464,36 @@ class Game {
     }
 
     this.blocks = this.blocks.filter((block) => !block.destroyed);
+
+    for (const barrier of this.barrierBlocks) {
+      if (barrier.destroyed) continue;
+
+      const rect = barrier.rect;
+
+      if (this.circleRectCollision(ball, rect)) {
+        const prevX = ball.x - ball.vx;
+        const prevY = ball.y - ball.vy;
+        const isHorizontal = prevY + BALL_RADIUS <= rect.y || prevY - BALL_RADIUS >= rect.y + rect.h;
+
+        barrier.strength -= 1;
+        this.score += 8;
+        this.updateHUD();
+        this.spawnHitParticles(barrier.x, barrier.y, "#f5f7fb");
+
+        if (barrier.strength <= 0) {
+          barrier.destroyed = true;
+          this.spawnExplosion(barrier.x, barrier.y);
+        }
+
+        if (isHorizontal) {
+          ball.vy *= -1;
+        } else {
+          ball.vx *= -1;
+        }
+      }
+    }
+
+    this.barrierBlocks = this.barrierBlocks.filter((barrier) => !barrier.destroyed);
   }
 
   circleRectCollision(ball, rect) {
@@ -431,11 +504,19 @@ class Game {
     return dx * dx + dy * dy < BALL_RADIUS * BALL_RADIUS;
   }
 
-  spawnHitParticles(x, y) {
+  spawnHitParticles(x, y, color = "#ffffff") {
     const count = 6 + Math.floor(Math.random() * 6);
-    const color = "#ffffff";
     for (let i = 0; i < count; i++) {
       this.particles.push(new Particle(x, y, color));
+    }
+  }
+
+  spawnExplosion(x, y) {
+    const colors = ["#ffd93d", "#ff6f61", "#ffad5c"];
+    const count = 28;
+    for (let i = 0; i < count; i++) {
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      this.particles.push(new Particle(x, y, color, { speed: 1320, life: 0.7 }));
     }
   }
 
@@ -465,6 +546,12 @@ class Game {
   drawBlocks() {
     for (const block of this.blocks) {
       block.draw(ctx);
+    }
+  }
+
+  drawBarrierBlocks() {
+    for (const barrier of this.barrierBlocks) {
+      barrier.draw(ctx);
     }
   }
 
@@ -498,6 +585,7 @@ class Game {
 
     this.drawGrid();
     this.drawBlocks();
+    this.drawBarrierBlocks();
     this.drawBalls();
     this.drawParticles();
     this.drawBase();
@@ -523,6 +611,22 @@ class Game {
     ctx.fillText(`Score: ${this.score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 16);
     ctx.fillText("Press Restart to play again", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 48);
     ctx.restore();
+  }
+
+  createBarrierRing() {
+    const centerX = GAME_WIDTH / 2;
+    const centerY = GAME_HEIGHT * 0.45;
+    const radius = GRID_SIZE * 2.4;
+    const size = GRID_SIZE * 0.9;
+    const blockCount = 10;
+
+    for (let i = 0; i < blockCount; i++) {
+      const angle = (Math.PI * 2 * i) / blockCount;
+      const x = clamp(centerX + Math.cos(angle) * radius, size / 2 + 8, GAME_WIDTH - size / 2 - 8);
+      const y = clamp(centerY + Math.sin(angle) * radius, size / 2 + 8, GAME_HEIGHT * 0.8);
+      const strength = 4 + Math.floor(this.rng.next() * 5);
+      this.barrierBlocks.push(new BarrierBlock(x, y, size, strength));
+    }
   }
 
   loop(timestamp) {
