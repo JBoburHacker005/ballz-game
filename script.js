@@ -68,6 +68,73 @@ function randomChoice(arr, rng) {
   return arr[Math.floor(rng.next() * arr.length)];
 }
 
+class SoundManager {
+  constructor() {
+    this.audioContext = null;
+    this.enabled = true;
+    this.initAudioContext();
+  }
+
+  initAudioContext() {
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.warn("Web Audio API not supported");
+      this.enabled = false;
+    }
+  }
+
+  playTone(frequency, duration, type = "sine", volume = 0.3) {
+    if (!this.enabled || !this.audioContext) return;
+
+    // Resume audio context if suspended (browser autoplay policy)
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume();
+    }
+
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+
+    oscillator.frequency.value = frequency;
+    oscillator.type = type;
+
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + duration);
+  }
+
+  playHitSound() {
+    // Short, sharp sound for hitting blocks
+    const baseFreq = 200 + Math.random() * 100;
+    this.playTone(baseFreq, 0.1, "square", 0.2);
+  }
+
+  playWallBounceSound() {
+    // Lower pitch for wall bounces
+    const baseFreq = 150 + Math.random() * 50;
+    this.playTone(baseFreq, 0.08, "sine", 0.15);
+  }
+
+  playDestroySound() {
+    // Higher pitch for destroying blocks
+    const baseFreq = 300 + Math.random() * 150;
+    this.playTone(baseFreq, 0.15, "sawtooth", 0.25);
+    // Add a second tone for more impact
+    setTimeout(() => {
+      if (this.enabled && this.audioContext) {
+        this.playTone(baseFreq * 1.5, 0.1, "square", 0.2);
+      }
+    }, 50);
+  }
+}
+
+const soundManager = new SoundManager();
+
 class Block {
   constructor(col, row, strength, type = "block") {
     this.col = col;
@@ -152,14 +219,17 @@ class Ball {
     if (this.x - BALL_RADIUS <= 0 && this.vx < 0) {
       this.x = BALL_RADIUS;
       this.vx *= -1;
+      soundManager.playWallBounceSound();
     } else if (this.x + BALL_RADIUS >= GAME_WIDTH && this.vx > 0) {
       this.x = GAME_WIDTH - BALL_RADIUS;
       this.vx *= -1;
+      soundManager.playWallBounceSound();
     }
 
     if (this.y - BALL_RADIUS <= 0 && this.vy < 0) {
       this.y = BALL_RADIUS;
       this.vy *= -1;
+      soundManager.playWallBounceSound();
     }
   }
 
@@ -424,6 +494,7 @@ class Game {
         if (this.activeBallChainLanding === null) {
           this.activeBallChainLanding = ball.x;
         }
+        soundManager.playWallBounceSound();
       }
     }
 
@@ -467,6 +538,9 @@ class Game {
           barrier.destroyed = true;
           this.spawnExplosion(barrier.x, barrier.y);
           this.spawnFloatingBlock({ force: true });
+          soundManager.playDestroySound();
+        } else {
+          soundManager.playHitSound();
         }
 
         if (isHorizontal) {
