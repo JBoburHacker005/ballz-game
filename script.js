@@ -15,7 +15,13 @@ class RNG {
 }
 
 const canvas = document.getElementById("gameCanvas");
+if (!canvas) {
+  throw new Error("Canvas element not found");
+}
 const ctx = canvas.getContext("2d");
+if (!ctx) {
+  throw new Error("Canvas context not available");
+}
 const scoreValue = document.getElementById("scoreValue");
 const ballCountValue = document.getElementById("ballCountValue");
 const restartBtn = document.getElementById("restartBtn");
@@ -23,6 +29,10 @@ const aimHint = document.getElementById("aimHint");
 const gameOverOverlay = document.getElementById("gameOverOverlay");
 const finalScoreValue = document.getElementById("finalScoreValue");
 const overlayRestartBtn = document.getElementById("overlayRestartBtn");
+
+if (!scoreValue || !ballCountValue || !restartBtn || !aimHint || !gameOverOverlay || !finalScoreValue || !overlayRestartBtn) {
+  console.error("Required DOM elements not found");
+}
 
 const GAME_WIDTH = canvas.width;
 const GAME_HEIGHT = canvas.height;
@@ -461,6 +471,7 @@ class Game {
         } else if (block.type === "block") {
           block.strength -= 1;
           this.score += 5;
+          this.updateHUD();
         }
 
         this.spawnHitParticles(rect.x + rect.w / 2, rect.y + rect.h / 2);
