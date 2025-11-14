@@ -127,11 +127,15 @@ class Ball {
     this.vx = Math.cos(angle) * BALL_SPEED;
     this.vy = Math.sin(angle) * BALL_SPEED;
     this.resting = false;
+    this.prevX = x;
+    this.prevY = y;
   }
 
   update(delta) {
     if (this.resting) return;
 
+    this.prevX = this.x;
+    this.prevY = this.y;
     this.x += this.vx * delta;
     this.y += this.vy * delta;
 
@@ -445,8 +449,8 @@ class Game {
       const rect = block.rect;
 
       if (this.circleRectCollision(ball, rect)) {
-        const prevX = ball.x - ball.vx;
-        const prevY = ball.y - ball.vy;
+        const prevX = ball.prevX ?? ball.x;
+        const prevY = ball.prevY ?? ball.y;
         const isHorizontal = prevY + BALL_RADIUS <= rect.y || prevY - BALL_RADIUS >= rect.y + rect.h;
 
         if (block.type === "pickup") {
@@ -481,8 +485,8 @@ class Game {
       const rect = barrier.rect;
 
       if (this.circleRectCollision(ball, rect)) {
-        const prevX = ball.x - ball.vx;
-        const prevY = ball.y - ball.vy;
+        const prevX = ball.prevX ?? ball.x;
+        const prevY = ball.prevY ?? ball.y;
         const isHorizontal = prevY + BALL_RADIUS <= rect.y || prevY - BALL_RADIUS >= rect.y + rect.h;
 
         barrier.strength -= 1;
