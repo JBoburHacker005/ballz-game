@@ -272,7 +272,6 @@ class Game {
     this.score = 0;
     this.timeAccumulator = 0;
     this.isGameOver = false;
-    this.spawnRow();
     this.seedFloatingBlocks();
     this.updateHUD();
     aimHint.classList.remove("hidden");
@@ -446,50 +445,9 @@ class Game {
     this.balls = [];
     this.baseBallPosition = this.activeBallChainLanding ?? this.baseBallPosition;
     this.updateHUD();
-    const reachedBottom = this.stepRowsDown();
-    if (!reachedBottom) {
-      this.spawnRow();
-    }
   }
 
   handleCollisions(ball) {
-    for (const block of this.blocks) {
-      if (block.destroyed) continue;
-
-      const rect = block.rect;
-
-      if (this.circleRectCollision(ball, rect)) {
-        const prevX = ball.prevX ?? ball.x;
-        const prevY = ball.prevY ?? ball.y;
-        const isHorizontal = prevY + BALL_RADIUS <= rect.y || prevY - BALL_RADIUS >= rect.y + rect.h;
-
-        if (block.type === "pickup") {
-          block.destroyed = true;
-          this.ballChain++;
-          this.score += 10;
-          this.updateHUD();
-        } else if (block.type === "block") {
-          block.strength -= 1;
-          this.score += 5;
-          this.updateHUD();
-        }
-
-        this.spawnHitParticles(rect.x + rect.w / 2, rect.y + rect.h / 2);
-
-        if ((block.type === "block" && block.strength <= 0) || block.destroyed) {
-          block.destroyed = true;
-        }
-
-        if (isHorizontal) {
-          ball.vy *= -1;
-        } else {
-          ball.vx *= -1;
-        }
-      }
-    }
-
-    this.blocks = this.blocks.filter((block) => !block.destroyed);
-
     for (const barrier of this.barrierBlocks) {
       if (barrier.destroyed) continue;
 
@@ -610,7 +568,6 @@ class Game {
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
     this.drawGrid();
-    this.drawBlocks();
     this.drawBarrierBlocks();
     this.drawBalls();
     this.drawParticles();
